@@ -54,6 +54,9 @@ def main():
     parser.add_option("-2", "--lib_2", dest="lib_two", help="Baselib for diffing - Win8 goes here")
     parser.add_option("-e", "--diff_byname", dest="diffbyname", help="Diff two libs by name, two-sided, provide a libname like advapi32.c. CAUTION: Tool aborts when more than 2 libs are matched and DOES NOT VERIFY if the two difflibs belong together.")
     
+    ### Suspicioning
+    parser.add_option("-x", "--suspicious_all", action="store_true", dest="suspicious_all", help="Gets all suspicious functions per library and prints them to CSV in data directory")
+    
     (options, args) = parser.parse_args()
     
 
@@ -209,6 +212,26 @@ def main():
             print output
         else:
             log.error("Something went wrong when choosing libs, maybe more than 2 matches or two libs with the same OS? Check with search_libs option!")
+    
+    ### SUSPICOUS STUFF
+    
+    elif options.suspicious_all is not None:
+        libids = db.select_libid_all()
+        
+        for lib in libids:
+            print lib[2], " - ", lib[1], ";"
+            sus_functions = db.select_suspicious_functions(lib[0])
+            for func in sus_functions:
+                print ";", func[0]
+                
+    elif options.suspicious_diff is not None:
+        libids = db.select_libid_all()
+        
+        for lib in libids:
+            pass
+        # start with highest OS
+        # get libraries all got in common
+ 
     
     else:
         log.error("Wrong Arguments - type -h or --help for Info")

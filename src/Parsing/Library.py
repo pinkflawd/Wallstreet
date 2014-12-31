@@ -70,7 +70,7 @@ class Library(object):
         comment = re.compile('^[\/\/|#]')
         brackon = re.compile('{')
         brackoff = re.compile('}')
-        call = re.compile('[^(?!if|while|for|switch|return|LODWORD|LOBYTE|LOWORD|HIWORD|HIBYTE|WORD|BYTE|ifelse|else][a-zA-Z0-9]+\(.*\)')
+        call = re.compile(r'((?![if|while|for|switch|return|LODWORD|LOBYTE|LOWORD|HIWORD|HIBYTE|WORD|BYTE2|BYTE4|ifelse|else])[A-Za-z0-9_]+\(.*\))')
         
         linecount = 0
         brackflag = 0
@@ -102,9 +102,9 @@ class Library(object):
                     if function is not None:
                         self.log.error("Something wrong with the brackets? %s" % function.funcname)
                         print brackflag
+                              
                     function = Function.Function(self.id, line.rstrip(), 0, suspiciousflag)
-                    if suspiciousflag == 1:
-                        print line.rstrip()
+
                     linecount = 0
                     brackflag = 0
                     suspiciousflag = 0
@@ -137,9 +137,32 @@ class Library(object):
                     
                     # parsing for called functions within actual function
                     if (len(rline) > 5):
-                        if (call.search(rline)):
-                            rline = re.sub('\'','', rline,0)
-                            function.add_functioncall(rline)
+                        if (call.search(line)):
+                            line = re.sub('\'','', line,0)
+                            # cut out function signature from line
+                            print line
+                            cut_fcalls = re.findall(r'(\b(?![if|while|for|switch|return|LODWORD|LOBYTE|LOWORD|HIWORD|HIBYTE|WORD|BYTE4|BYTE2|ifelse|else])[A-Za-z0-9_]+\(.*\))', line, 0)
+                            
+                            print cut_fcalls
+                            brack = cut_fcalls[0].index('(')
+                            if brack != -1:
+                                #print line[brack:]
+                                start = brack
+                                while (cut_fcalls[0][start] != ' ' and start > 0):
+                                    start = start - 1
+                                #print cut_fcalls[0][start+1:]
+                            # get first appearance of (
+                            # go back from there to a whitespace or beginning of line
+                            # go ahead from there counting brackets finding the closing one
+                            
+                            
+                            fcall = cut_fcalls[0]
+                            
+                            # TROUBLESHOOTING CODE
+                            if len(cut_fcalls) > 1:
+                                print "MORE to find in this line of function calls"
+                            
+                            function.add_functioncall(fcall)
                     
                     if (brackon.search(rline)):
                         brackflag += 1

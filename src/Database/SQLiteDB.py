@@ -108,6 +108,14 @@ class SQLiteDB(object):
         select_string = "select id from t_library where libmd5 = '%s'" % filemd5
         id = self.select_id(select_string)
         return id
+    
+    def select_libid_all(self):
+        select_string = "select id, libname, os from t_library"
+        return self.select(select_string).fetchall()
+    
+    def select_libid_os(self, os):
+        select_string = "select id, libname from t_library where os = '%s'" % os
+        return self.select(select_string).fetchall()
 
     def select_signatures(self):
         select_string = "select * from t_signature"
@@ -262,6 +270,12 @@ class SQLiteDB(object):
         select_string = "select * from t_signature where mapping not null"
         return self.select(select_string).fetchall()
     
+    # get all suspicious functions per library
+    def select_suspicious_functions(self, libid):
+        select_string = "select funcname from t_function where t_function.suspicious = 1 and t_function.libid = %i" % libid
+        return self.select(select_string).fetchall()
+        
+        
     ###########################
     # Scheme Re-Creation      #
     # t_library               #
