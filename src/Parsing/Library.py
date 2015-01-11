@@ -37,10 +37,10 @@ class Library(object):
         else:
             raise ParameterError, "Path Parameter too long! max. 299" 
             
-        if len(os) < 5:
+        if len(os) < 6:
             self.os = os
         else:
-            raise ParameterError, "OS Parameter too long! Expects Win7 or Win8, max. 4"
+            raise ParameterError, "OS Parameter too long! Expects Win7 or Win8 or Win10, max. 5"
         
         try:
             self.file = open(self.path)
@@ -70,7 +70,8 @@ class Library(object):
         comment = re.compile('^[\/\/|#]')
         brackon = re.compile('{')
         brackoff = re.compile('}')
-        call = re.compile(r'((?![if|while|for|switch|return|LODWORD|LOBYTE|LOWORD|HIWORD|HIBYTE|WORD|BYTE2|BYTE4|ifelse|else])[A-Za-z0-9_]+\(.*\))')
+        call = re.compile(r'([A-Za-z0-9_]+\(.*\))')
+        operand = ['if(','while(','for(','switch(','return(','LODWORD(','LOBYTE(','LOWORD(','HIWORD(','HIBYTE(','WORD(','BYTE2(','BYTE4(','ifelse(','else(']
         
         linecount = 0
         brackflag = 0
@@ -138,32 +139,18 @@ class Library(object):
                     # parsing for called functions within actual function
                     if (len(rline) > 5):
                         if (call.search(line)):
-                            line = re.sub('\'','', line,0)
+                            sani_line = re.sub('["\'\\\]', '', line)
+                            
                             # cut out function signature from line
-                            print line
-                            cut_fcalls = re.findall(r'(\b(?![if|while|for|switch|return|LODWORD|LOBYTE|LOWORD|HIWORD|HIBYTE|WORD|BYTE4|BYTE2|ifelse|else])[A-Za-z0-9_]+\(.*\))', line, 0)
-                            
-                            print cut_fcalls
-                            brack = cut_fcalls[0].index('(')
-                            if brack != -1:
-                                #print line[brack:]
-                                start = brack
-                                while (cut_fcalls[0][start] != ' ' and start > 0):
-                                    start = start - 1
-                                #print cut_fcalls[0][start+1:]
-                            # get first appearance of (
-                            # go back from there to a whitespace or beginning of line
-                            # go ahead from there counting brackets finding the closing one
-                            
-                            
-                            fcall = cut_fcalls[0]
-                            
-                            # TROUBLESHOOTING CODE
-                            if len(cut_fcalls) > 1:
-                                print "MORE to find in this line of function calls"
-                            
-                            function.add_functioncall(fcall)
-                    
+                            cut_fcalls = call.search(sani_line)
+                            if cut_fcalls:
+                                #print cut_fcalls.group()
+                                if any (word in cut_fcalls.group() for word in operand):
+                                    #print cut_fcalls.group()
+                                    pass
+                                else:
+                                    function.add_functioncall(cut_fcalls.group())
+                                 
                     if (brackon.search(rline)):
                         brackflag += 1
 

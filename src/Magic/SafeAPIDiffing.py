@@ -7,7 +7,7 @@ Created on 13.10.2013
 import re
 
 
-class Info(object):
+class SafeAPIDiffing(object):
     '''
     INFO CLASS
     

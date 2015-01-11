@@ -11,8 +11,10 @@ import re
 import sys
 import traceback
 
-import Diffing.Info
+import Magic.SafeAPIDiffing
+import Magic.Suspicion
 import Parsing.Library
+from OsVersions import OsVersion
 
 
 def main():
@@ -46,16 +48,17 @@ def main():
     parser.add_option("-u", "--update-sigs", action="store_true", dest="updatesigs", help="Flushes the signature table and re-reads the signatures.conf for update")
     parser.add_option("-m", "--print-mappings", action="store_true", dest="printmappings", help="Prints the Mappings in the signature table")
        
-    ### Diffing
+    ### Magic
     parser.add_option("-s", "--search_libs", dest="libname", help="Provide a library name (without .dll ending!!) to be searched in the DB, gives you the IDs you need for diffing!")
     parser.add_option("-a", "--lib_all_info", dest="lib_allinfo", help="Takes one libid as argument and prints all hit information in csv format")
-    parser.add_option("-i", "--diff", action="store_true", dest="diff", help="Diffing of two libraries, needs arguments lib1 and lib2, lib1 should be win7 as difflib, lib2 for win8 as baselib")
+    parser.add_option("-i", "--diff", action="store_true", dest="diff", help="Magic of two libraries, needs arguments lib1 and lib2, lib1 should be win7 as difflib, lib2 for win8 as baselib")
     parser.add_option("-1", "--lib_1", dest="lib_one", help="Difflib for diffing - Win7 goes here")
     parser.add_option("-2", "--lib_2", dest="lib_two", help="Baselib for diffing - Win8 goes here")
     parser.add_option("-e", "--diff_byname", dest="diffbyname", help="Diff two libs by name, two-sided, provide a libname like advapi32.c. CAUTION: Tool aborts when more than 2 libs are matched and DOES NOT VERIFY if the two difflibs belong together.")
     
     ### Suspicioning
     parser.add_option("-x", "--suspicious_all", action="store_true", dest="suspicious_all", help="Gets all suspicious functions per library and prints them to CSV in data directory")
+    parser.add_option("-y", "--suspicious_diff", action="store_true", dest="suspicious_diff", help="Get added suspicious functions for Win10 (currently)")
     
     (options, args) = parser.parse_args()
     
@@ -153,7 +156,7 @@ def main():
     ### OPTION printmappings shows all the mappings that exist for sigs in the DB ###
     
     elif options.printmappings is not None:
-        info = Diffing.Info.Info()
+        info = Magic.SafeAPIDiffing.SafeAPIDiffing()
         info.print_mappings()
         
     ### OPTION search_libs gets you the lib IDs to a given libname ###
@@ -161,7 +164,7 @@ def main():
     elif options.libname is not None:
         # sanitizing
         sanilibname = re.sub('\'','', options.libname,0)
-        info = Diffing.Info.Info()
+        info = Magic.SafeAPIDiffing.SafeAPIDiffing()
         cursor = info.search_libs(sanilibname)
         for item in cursor:
             print "Library ID %s for %s with OS %s" % (item[0], item[1], item[2])
@@ -174,7 +177,7 @@ def main():
         except ValueError:
             log.error("Libid has to be numeric!")
         else:
-            info = Diffing.Info.Info()
+            info = Magic.SafeAPIDiffing.SafeAPIDiffing()
             cursor = info.library_info(libid)
             
             print "Libname;Functionname;Sigpattern;Line_Offset"
@@ -193,7 +196,7 @@ def main():
             except ValueError:
                 log.error("Libids have to be numeric!")
             else:
-                info = Diffing.Info.Info()
+                info = Magic.SafeAPIDiffing.SafeAPIDiffing()
                 output = info.diff_twosided(w7lib, w8lib)
                 print output
                 
@@ -204,7 +207,7 @@ def main():
     
     elif options.diffbyname is not None:
         sanilibname = re.sub('\'','', options.diffbyname,0)
-        info = Diffing.Info.Info()
+        info = Magic.SafeAPIDiffing.SafeAPIDiffing()
         ids = info.search_libs_diffing(sanilibname)
         if (ids != -1):
             #info.diff_libs(ids[0],ids[1])   # 0.. Win7, 1.. Win8
@@ -215,23 +218,18 @@ def main():
     
     ### SUSPICOUS STUFF
     
+    # Print all suspicious functions to commandline, format csv conform
     elif options.suspicious_all is not None:
-        libids = db.select_libid_all()
-        
-        for lib in libids:
-            print lib[2], " - ", lib[1], ";"
-            sus_functions = db.select_suspicious_functions(lib[0])
-            for func in sus_functions:
-                print ";", func[0]
+        mysuspicion = Magic.Suspicion.Suspicion()
+        mysuspicion.get_suspicous_all()
                 
+    # Search for added suspicious functions from Win10 downwards
     elif options.suspicious_diff is not None:
-        libids = db.select_libid_all()
+        # get suspicious functions per OS
+        mysuspicion = Magic.Suspicion.Suspicion()
+        mysuspicion.get_suspicious_os(OsVersion.win10)
         
-        for lib in libids:
-            pass
-        # start with highest OS
-        # get libraries all got in common
- 
+    # Call tree traversal!!
     
     else:
         log.error("Wrong Arguments - type -h or --help for Info")

@@ -108,14 +108,6 @@ class SQLiteDB(object):
         select_string = "select id from t_library where libmd5 = '%s'" % filemd5
         id = self.select_id(select_string)
         return id
-    
-    def select_libid_all(self):
-        select_string = "select id, libname, os from t_library"
-        return self.select(select_string).fetchall()
-    
-    def select_libid_os(self, os):
-        select_string = "select id, libname from t_library where os = '%s'" % os
-        return self.select(select_string).fetchall()
 
     def select_signatures(self):
         select_string = "select * from t_signature"
@@ -270,11 +262,35 @@ class SQLiteDB(object):
         select_string = "select * from t_signature where mapping not null"
         return self.select(select_string).fetchall()
     
+    ### SUSPICIOUS TASKS (pun intended)
+    
     # get all suspicious functions per library
     def select_suspicious_functions(self, libid):
         select_string = "select funcname from t_function where t_function.suspicious = 1 and t_function.libid = %i" % libid
         return self.select(select_string).fetchall()
         
+    # get all suspicious functions per os
+    def select_suspicious_functions_os(self, os):
+        select_string = "select funcname from t_function where t_function.suspicious = 1 and t_function.libid in (select id from t_library where os = '%s')" % os
+        return self.select(select_string).fetchall()
+    
+    # get related functions to one funcname for finding new functions
+    def select_suspicious_functions_diff(self, funcname):
+        select_string = "select funcname, os from t_function join t_library on t_function.libid=t_library.id where t_function.funcname like '%s%%'" % funcname
+        return self.select(select_string).fetchall()
+    
+    # check if one functionname is present in all os versions
+    def select_suspicious_function_peros(self, funcname):
+        select_string = "select count(*), os from t_function join t_library on t_function.libid=t_library.id where funcname like '%s%%' group by os" % funcname
+        return self.select(select_string).fetchall()
+    
+    def select_libid_all(self):
+        select_string = "select id, libname, os from t_library"
+        return self.select(select_string).fetchall()
+    
+    def select_os_all(self):
+        select_string = "select distinct os from t_library"
+        return self.select(select_string).fetchall()
         
     ###########################
     # Scheme Re-Creation      #
