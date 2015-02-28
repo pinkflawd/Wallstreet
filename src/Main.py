@@ -12,9 +12,9 @@ import sys
 import traceback
 
 import Magic.SafeAPIDiffing
-import Magic.Suspicion
+import Magic.Rating
 import Parsing.Library
-from OsVersions import OsVersion
+from Enums import OsVersion
 
 
 def main():
@@ -37,17 +37,16 @@ def main():
     parser = OptionParser()
        
     ### Parsing
-    parser.add_option("-d", "--dirparse", dest="directory", help="The directory which contains EITHER c or lst files for ONE os! Needs OS and type option.")
+    parser.add_option("-d", "--dirparse", dest="directory", help="The directory which contains files for ONE os! Needs OS option.")
     parser.add_option("-n", "--no-flush", action="store_true", dest="noflush", help="Continue parsing without flushing existing function info - mb the app crashed before..")
-    parser.add_option("-p", "--parse", dest="filename", help="The file to parse, needs the OS option and the type option too")
+    parser.add_option("-p", "--parse", dest="filename", help="The file to parse, needs the OS option")
     parser.add_option("-o", "--os", dest="os", help="OS the Library belongs to, Win7 or Win8")
     
     ### Maintenance
     parser.add_option("-f", "--flushall", action="store_true", dest="flush", help="Flush the Database Scheme")
     parser.add_option("-c", "--create-scheme", action="store_true", dest="createall", help="(Re)Create Database Scheme (same as flushall option)")
     parser.add_option("-u", "--update-sigs", action="store_true", dest="updatesigs", help="Flushes the signature table and re-reads the signatures.conf for update")
-    parser.add_option("-m", "--print-mappings", action="store_true", dest="printmappings", help="Prints the Mappings in the signature table")
-       
+        
     ### Magic
     parser.add_option("-s", "--search_libs", dest="libname", help="Provide a library name (without .dll ending!!) to be searched in the DB, gives you the IDs you need for diffing!")
     parser.add_option("-a", "--lib_all_info", dest="lib_allinfo", help="Takes one libid as argument and prints all hit information in csv format")
@@ -56,9 +55,11 @@ def main():
     parser.add_option("-2", "--lib_2", dest="lib_two", help="Baselib for diffing - Win8 goes here")
     parser.add_option("-e", "--diff_byname", dest="diffbyname", help="Diff two libs by name, two-sided, provide a libname like advapi32.c. CAUTION: Tool aborts when more than 2 libs are matched and DOES NOT VERIFY if the two difflibs belong together.")
     
-    ### Suspicioning
+    ### Rating
     parser.add_option("-x", "--suspicious_all", action="store_true", dest="suspicious_all", help="Gets all suspicious functions per library and prints them to CSV in data directory")
-    parser.add_option("-y", "--suspicious_diff", action="store_true", dest="suspicious_diff", help="Get added suspicious functions for Win10 (currently)")
+    parser.add_option("-r", "--rating", action="store_true", dest="rating", help="Does the rating magic and puts it into the DB")
+    parser.add_option("-t", "--tree", dest="treetraversal", help="Provide a function ID for traversal of call tree")
+    #parser.add_option("")
     
     (options, args) = parser.parse_args()
     
@@ -139,26 +140,9 @@ def main():
                 db.insert_suspicious(suspicious)
                 suspiciousfile.close()
             
-            try:
-                sigmapping = open(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'conf', 'sig_mapping.conf'))
-            except:
-                log.error("Something went wrong when accessing the sig_mapping.conf.")
-            else:
-                for line in sigmapping:
-                    map = re.sub('\'','', line.rstrip(),0)
-                    arr = re.split('=', map, 1)
-                    db.update_mappings(arr[0], arr[1])
-                sigmapping.close()
-        
         except:
             log.error("Something went wrong when updating the signatures in DB.")
 
-    ### OPTION printmappings shows all the mappings that exist for sigs in the DB ###
-    
-    elif options.printmappings is not None:
-        info = Magic.SafeAPIDiffing.SafeAPIDiffing()
-        info.print_mappings()
-        
     ### OPTION search_libs gets you the lib IDs to a given libname ###
     
     elif options.libname is not None:
@@ -168,6 +152,34 @@ def main():
         cursor = info.search_libs(sanilibname)
         for item in cursor:
             print "Library ID %s for %s with OS %s" % (item[0], item[1], item[2])
+    
+    
+    ### SUSPICOUS STUFF
+    
+    # Print all suspicious functions to commandline, format csv conform
+    elif options.suspicious_all is not None:
+        mysuspicion = Magic.Rating.Rating()
+        mysuspicion.print_suspicous_all()
+                
+    # Search for added suspicious functions from Win10 downwards
+    elif options.rating is not None:
+        # get suspicious functions per OS
+        mysuspicion = Magic.Rating.Rating()
+        mysuspicion.rate_new_functions()
+        mysuspicion.rate_missing_safeapis()
+
+
+
+    # Call tree traversal!!
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     ### OPTION lib_allinfo prints all hit information of one library, given the libid
     
@@ -216,20 +228,7 @@ def main():
         else:
             log.error("Something went wrong when choosing libs, maybe more than 2 matches or two libs with the same OS? Check with search_libs option!")
     
-    ### SUSPICOUS STUFF
     
-    # Print all suspicious functions to commandline, format csv conform
-    elif options.suspicious_all is not None:
-        mysuspicion = Magic.Suspicion.Suspicion()
-        mysuspicion.get_suspicous_all()
-                
-    # Search for added suspicious functions from Win10 downwards
-    elif options.suspicious_diff is not None:
-        # get suspicious functions per OS
-        mysuspicion = Magic.Suspicion.Suspicion()
-        mysuspicion.get_suspicious_os(OsVersion.win10)
-        
-    # Call tree traversal!!
     
     else:
         log.error("Wrong Arguments - type -h or --help for Info")

@@ -6,10 +6,11 @@ Created on 05.09.2013
 
 import hashlib
 import logging.config
-import os
+from os import path
 import re
 
 from Exceptions import ParameterError, FileError
+from Enums import Exploitables
 import Function
 
 
@@ -21,7 +22,7 @@ class Library(object):
     '''
     
     try:
-        logging.config.fileConfig(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..','..', 'conf', 'logger.conf'))
+        logging.config.fileConfig(path.join(path.abspath(path.dirname(__file__)), '..','..', 'conf', 'logger.conf'))
         log = logging.getLogger('Library')
     except:
         # here could go some configuration of a default logger -- me too lazy
@@ -29,16 +30,17 @@ class Library(object):
         exit(1)
 
 
-    def __init__(self, path, os):
+    def __init__(self, filepath, os):
         
-        if len(path) < 300:
-            sanipath = re.sub('\'','', path,0)
+        if len(filepath) < 300:
+            sanipath = re.sub('\'','', filepath,0)
             self.path = sanipath
+            self.libname = path.basename(self.path)
         else:
             raise ParameterError, "Path Parameter too long! max. 299" 
             
         if len(os) < 6:
-            self.os = os
+            self.os = os.upper()
         else:
             raise ParameterError, "OS Parameter too long! Expects Win7 or Win8 or Win10, max. 5"
         
@@ -58,8 +60,8 @@ class Library(object):
             self.db = Database.SQLiteDB.SQLiteDB()
             self.backend = "SQLITE"
                 
-            self.existant = self.db.insert_library(self.filemd5,self.path,self.os)
-            self.id = self.db.select_libid(self.filemd5)
+            self.existant = self.db.insert_library(self.filemd5,self.libname,self.os)
+            self.id = self.db.select_libid(self.filemd5, self.os)
            
         
     def parse_cfile(self):
@@ -72,10 +74,13 @@ class Library(object):
         brackoff = re.compile('}')
         call = re.compile(r'([A-Za-z0-9_]+\(.*\))')
         operand = ['if(','while(','for(','switch(','return(','LODWORD(','LOBYTE(','LOWORD(','HIWORD(','HIBYTE(','WORD(','BYTE2(','BYTE4(','ifelse(','else(']
+        sanitize = re.compile(' if.*[<>]')
         
         linecount = 0
         brackflag = 0
         suspiciousflag = 0
+        sanitychecks = 0
+        exploitables = 0
         function = None
         
         try:
@@ -105,10 +110,12 @@ class Library(object):
                         print brackflag
                               
                     function = Function.Function(self.id, line.rstrip(), 0, suspiciousflag)
-
+                    
                     linecount = 0
                     brackflag = 0
                     suspiciousflag = 0
+                    sanitychecks = 0
+                    exploitables = 0
                     
                 elif function is not None and not comment.search(line):                      #inside a function and not a comment line
       
@@ -150,13 +157,28 @@ class Library(object):
                                     pass
                                 else:
                                     function.add_functioncall(cut_fcalls.group())
-                                 
+                         
+                        # search for exploitables and sanity checks HERE
+                        if (sanitize.search(line)):
+                            sanitychecks = sanitychecks + 1
+                         
+                        # Load Convert Set Create Read Decode Save Append Do Copy Open Alloc 
+                        for exploitable in Exploitables:
+                            large = line.upper()
+                            if exploitable.value in large and 'Thread' not in large and 'Writeable' not in large:
+                                exploitables = exploitables + 1
+                                #print rline
+                        
                     if (brackon.search(rline)):
                         brackflag += 1
 
                     if (brackoff.search(rline)):
                         brackflag -= 1
+                        
+                        # End of function reached
                         if (brackflag == 0):
+                            function.set_sanitycheck_rating(sanitychecks)
+                            function.set_exploitables_rating(exploitables)
                             function.set_linecount(linecount+1)
                             function = None
                                                         

@@ -67,32 +67,38 @@ class SafeAPIDiffing(object):
             return -1
 
 
-    # DEPRECATED
-    def diff_libs(self, w7lib, w8lib):
+    def missing_safeapis_singlesided(self, osA, osB):
         
-        cur_one = self.db.select_diff_one(w8lib) # sigpattern,  funcname, count(*) co
-        res = cur_one.fetchall()
-         
-        print "Function_Name;Pattern;Win8_Hits;Win7_Hits"
-
-        for item in res:
-            fsplit = re.split('\(', item[1], 1, 0) #funcname
+        # get all functions for OS A
+        functions_osA = self.db.select_functions_os(osA) # funcname, id, libraryname
+        
+        # for any function in OS A get hitcount for func.osA and func.osB
+        for function_osA in functions_osA:
             
-            cur_two = self.db.select_diff_two(w7lib,item[0],fsplit[0]) # sigpattern
-            hitcount_two = cur_two.fetchone()
-             
-            if hitcount_two:
-                print "%s;%s;%s;%s" % (fsplit[0],item[0],item[2],hitcount_two[2]) #sigpattern, co
-            elif (self.db.select_function(fsplit[0], w7lib)):
-                print "%s;%s;%s;0" % (fsplit[0],item[0],item[2]) #sigpattern, co
-            else:
-                print "%s;%s;%s;func_non_existent" % (fsplit[0],item[0],item[2]) #sigpattern, co
-        
+            # get function name only, w.o. params
+            snippet_funcosA = function_osA[0][:function_osA[0].index('(')] + "("
+            function_osB = self.db.select_complementary_function(osB, function_osA[2], snippet_funcosA) # id
+            if function_osB:
+               
+                # complementary functions: function_osA[1]  and  function_osB[0][0]
+                
+                ratingvalue = 0
+                hits_funcA = self.db.select_hits_per_function_pattern(function_osA[1]) # count, pattern
+                
+                for hitA in hits_funcA:
+                    hits_funcB = self.db.select_complementary_hits(function_osB[0][0], hitA[1]) # count
+                    ratingvalue = ratingvalue + (hitA[0] - hits_funcB[0])
+                
+                if ratingvalue > 0:
+                    self.db.update_rating(function_osB[0][0], 'safeapismissing', ratingvalue)
+                    print "RATING %i / %i with %i" % (function_osA[1], function_osB[0][0], ratingvalue)
+                
+       
 
     # returns TEXT
-    def diff_twosided(self, w7lib, w8lib):
+    def diff_twosided(self, wAlib, wBlib):
 
-        cur_one = self.db.select_diff_one(w8lib) # sigpattern,  funcname, count(*) co
+        cur_one = self.db.select_diff_one(wBlib) # sigpattern,  funcname, count(*) co
         res = cur_one.fetchall()
          
         output = "Function_Name;Pattern;Win8_Hits;Win7_Hits\n"
@@ -100,32 +106,32 @@ class SafeAPIDiffing(object):
         for item in res:
             fsplit = re.split('\(', item[1], 1, 0) #funcname
             
-            cur_two = self.db.select_diff_two(w7lib,item[0],fsplit[0]) #sigpattern
+            cur_two = self.db.select_diff_two(wAlib,item[0],fsplit[0]) #sigpattern
             hitcount_two = cur_two.fetchone()
              
             if (hitcount_two):
                 if item[2] != hitcount_two[0]: #count
                     output += "%s;%s;%s;%s\n" % (fsplit[0],item[0],item[2],hitcount_two[0]) # sigpattern, co, co
 
-            elif (self.db.select_function(fsplit[0], w7lib)):
+            elif (self.db.select_function(fsplit[0], wAlib)):
                 output += "%s;%s;%s;0\n" % (fsplit[0],item[0],item[2]) # sigpattern, co
 
         output += "\nFunction_Name;Pattern;Win7_Hits;Win8_Hits\n"
         
-        cur_one = self.db.select_diff_one(w7lib) # sigpattern,  funcname, count(*) co
+        cur_one = self.db.select_diff_one(wAlib) # sigpattern,  funcname, count(*) co
         res = cur_one.fetchall()
          
         for item in res:
             fsplit = re.split('\(', item[1], 1, 0) # funcname
             
-            cur_two = self.db.select_diff_two(w8lib,item[0],fsplit[0])
+            cur_two = self.db.select_diff_two(wBlib,item[0],fsplit[0])
             hitcount_two = cur_two.fetchone()
              
             if (hitcount_two):
                 if item[2] != hitcount_two[0]: # co
                     output += "%s;%s;%s;%s\n" % (fsplit[0],item[0],item[2],hitcount_two[0])
 
-            elif (self.db.select_function(fsplit[0], w8lib)):
+            elif (self.db.select_function(fsplit[0], wBlib)):
                 output += "%s;%s;%s;0\n" % (fsplit[0],item[0],item[2])
                 
         return output
@@ -134,11 +140,6 @@ class SafeAPIDiffing(object):
         cur_all = self.db.select_lib_all(libid) # libname, funcname, sigpattern, line_offset
         return cur_all
 
-    # only CMDLine version
-    def print_mappings(self):
-        cur_all = self.db.select_mappings()
-        print "Sigpattern;Mapping"
-        for item in cur_all:
-            print "%s;%s" % (item[0],item[1])
+    
             
             

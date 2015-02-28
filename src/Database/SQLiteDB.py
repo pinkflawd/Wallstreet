@@ -9,6 +9,7 @@ import os.path
 import sqlite3
 
 from Exceptions import DatabaseError
+from ctypes.test.test_funcptr import lib
 
 
 class SQLiteDB(object):
@@ -46,10 +47,11 @@ class SQLiteDB(object):
     ###########################
 
     def select(self, select_string):
-        try:
+        try: 
             cursor = self.localdb.cursor()
             cursor.execute(select_string)
         except:
+            print select_string
             raise DatabaseError, "An Error occurred when executing a select."
         else:
             return cursor
@@ -70,6 +72,7 @@ class SQLiteDB(object):
             cursor = self.localdb.cursor()
             cursor.execute(delete_string)
         except:
+            print delete_string
             raise DatabaseError, "An Error occurred when executing a delete."
         else:
             self.localdb.commit()
@@ -80,6 +83,7 @@ class SQLiteDB(object):
             cursor = self.localdb.cursor()
             cursor.execute(update_string)
         except:
+            print update_string
             raise DatabaseError, "An Error occurred when executing an update."
         else:
             self.localdb.commit()
@@ -104,8 +108,8 @@ class SQLiteDB(object):
         id = self.select_id(select_string)
         return id
     
-    def select_libid(self, filemd5):
-        select_string = "select id from t_library where libmd5 = '%s'" % filemd5
+    def select_libid(self, filemd5, os):
+        select_string = "select id from t_library where libmd5 = '%s' and os = '%s'" % (filemd5, os)
         id = self.select_id(select_string)
         return id
 
@@ -158,16 +162,19 @@ class SQLiteDB(object):
         self.delete(delete_string)
         
     def insert_library(self, filemd5, filename, os):
-        select_string = "select id from t_library where libmd5 = '%s'" % filemd5
-        libid = self.select_id(select_string)
-        if libid == 0:
+        select_string = "select id from t_library where libmd5 = '%s' and os = '%s'" % (filemd5, os)
+        lib = self.select(select_string).fetchall()
+         
+        if lib:
+            self.log.info("Library with id %s in %s already exists" % (filemd5, os))
+            return True
+        
+        else:
             insert_string = "insert into t_library (libmd5, libname, os) values ('%s','%s', '%s')" % (filemd5, filename, os)
             self.insert(insert_string)
             self.log.info("Library %s with id %s created" %(filename, filemd5))
             return False
-        else:
-            self.log.info("Library with id %s already exists" % filemd5)
-            return True
+            
                 
                 
     def insert_function(self, libid, funcname, linecount, suspicious):
@@ -192,10 +199,6 @@ class SQLiteDB(object):
             self.insert(insert_string)
         self.log.info("Suspicious patterns inserted/updated")
         
-    def update_mappings(self, sig, map):
-        insert_string = "update t_signature set mapping='%s' where sigpattern = '%s'" % (map, sig)
-        self.update(insert_string)
-        
     def insert_hit(self, libid, funcid, sigpattern, line_offset):
         insert_string = "insert into t_hit (libid, funcid, sigpattern, line_offset) values (%i, %i, '%s', %i)" % (libid, funcid, sigpattern, line_offset)
         self.insert(insert_string)
@@ -206,7 +209,8 @@ class SQLiteDB(object):
         self.update(update_string)
         
         
-    ### INFO TASKS
+        
+    ### DIFFING TASKS
     
     # gets libids for performing more Info tasks
     def select_libs_byname(self, libname):
@@ -252,15 +256,13 @@ class SQLiteDB(object):
         else:
             return False     
         
+        
     # get the os of a lib           
     def select_os(self,libid):
         select_string = "select os from t_library where id = %i" % libid
         return self.select(select_string)
-        
-    # get mappings in signature table
-    def select_mappings(self):
-        select_string = "select * from t_signature where mapping not null"
-        return self.select(select_string).fetchall()
+    
+    
     
     ### SUSPICIOUS TASKS (pun intended)
     
@@ -268,21 +270,47 @@ class SQLiteDB(object):
     def select_suspicious_functions(self, libid):
         select_string = "select funcname from t_function where t_function.suspicious = 1 and t_function.libid = %i" % libid
         return self.select(select_string).fetchall()
+    
+    
+    ### RATING TASKS
         
-    # get all suspicious functions per os
-    def select_suspicious_functions_os(self, os):
-        select_string = "select funcname from t_function where t_function.suspicious = 1 and t_function.libid in (select id from t_library where os = '%s')" % os
+    # get all functions per os
+    def select_functions_os(self, os):
+        select_string = "select funcname, t_function.id, libname from t_function, t_library where t_function.libid = t_library.id and t_function.libid in (select id from t_library where os = '%s')" % os
+        print select_string
         return self.select(select_string).fetchall()
     
-    # get related functions to one funcname for finding new functions
-    def select_suspicious_functions_diff(self, funcname):
-        select_string = "select funcname, os from t_function join t_library on t_function.libid=t_library.id where t_function.funcname like '%s%%'" % funcname
+    # get missing safeapi hits for rating
+    def select_complementary_function(self, osB, libraryA, funcnameA):
+        select_string = """select t_function.id from t_function, t_library where t_function.libid = t_library.id 
+                        and t_function.libid in (select id from t_library where os = '%s') 
+                        and funcname like '%s%%' and libname = '%s'""" % (osB, funcnameA, libraryA)
         return self.select(select_string).fetchall()
+    
+    def select_hits_per_function_pattern(self, funcid):
+        select_string = "select count(*), sigpattern from t_hit where funcid = %i group by sigpattern" % funcid
+        return self.select(select_string).fetchall();
+    
+    def select_complementary_hits(self, funcid, pattern):
+        select_string = "select count(*) from t_hit where funcid = %i and sigpattern = '%s'" % (funcid, pattern)
+        return self.select(select_string).fetchone()
     
     # check if one functionname is present in all os versions
-    def select_suspicious_function_peros(self, funcname):
+    def select_number_function_per_os(self, funcname):
         select_string = "select count(*), os from t_function join t_library on t_function.libid=t_library.id where funcname like '%s%%' group by os" % funcname
         return self.select(select_string).fetchall()
+    
+    # get all safeapihits for a function id
+    def select_safeapihits_per_function(self):
+        select_string = """select funcid,count(*) from t_hit group by funcid""" 
+        return self.select(select_string).fetchall()
+    
+    def update_rating(self, funcid, attribute, value):
+        update_string = "update t_function set %s = %i where id = %i" % (attribute, value, funcid)
+        self.update(update_string)
+    
+    
+    ### OTHER
     
     def select_libid_all(self):
         select_string = "select id, libname, os from t_library"
@@ -315,7 +343,12 @@ class SQLiteDB(object):
                         libid integer not null,
                         funcname text,
                         linecount integer,
-                        suspicious integer,
+                        suspicious integer default 0,
+                        exploitables integer default 0,
+                        newness integer default 0,
+                        safeapismissing integer default 0,
+                        safeapihits integer default 0,
+                        sanitychecks integer default 0,
                         foreign key(libid) references t_library(id)
                         )"""
         self.insert(create_string)
@@ -351,7 +384,7 @@ class SQLiteDB(object):
                         )"""
         
         self.insert(create_string)
-
+        
         self.log.info("Database recreated")
         
 

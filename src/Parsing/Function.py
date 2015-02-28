@@ -7,7 +7,7 @@ Created on 12.09.2013
 import re
 
 from Exceptions import ParameterError
-
+import Magic.Rating 
 
 class Function(object):
     '''
@@ -47,6 +47,14 @@ class Function(object):
         
     def set_linecount(self,linecount):
         self.db.set_linecount(linecount, self.id)
+        
+    def set_sanitycheck_rating(self, sanitychecks):
+        rateme = Magic.Rating.Rating()
+        rateme.rate_sanitychecks(self.id, sanitychecks)
+        
+    def set_exploitables_rating(self, exploitables):
+        rateme = Magic.Rating.Rating()
+        rateme.rate_exploitables(self.id, exploitables)
     
     def signature_found(self, libid, funcid, sigpattern, line_offset):
         self.db.insert_hit(libid, funcid, sigpattern, line_offset)
