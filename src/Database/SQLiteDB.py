@@ -30,9 +30,10 @@ class SQLiteDB(object):
     
     def __init__(self):
         try:
-            self.localdb = sqlite3.connect(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..','..', 'data', 'dbdbdb.sqlite'))
+            self.localdb = sqlite3.connect(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..','..', 'data', 'ratingtest.sqlite'))
             # set row factory to Row type for accessing rows as dictionaries
             self.localdb.row_factory = sqlite3.Row
+            self.localdb.text_factory = str
         except:
             raise DatabaseError, "Connection to DB cant be established."
         
@@ -277,7 +278,6 @@ class SQLiteDB(object):
     # get all functions per os
     def select_functions_os(self, os):
         select_string = "select funcname, t_function.id, libname from t_function, t_library where t_function.libid = t_library.id and t_function.libid in (select id from t_library where os = '%s')" % os
-        print select_string
         return self.select(select_string).fetchall()
     
     # get missing safeapi hits for rating
@@ -309,6 +309,17 @@ class SQLiteDB(object):
         update_string = "update t_function set %s = %i where id = %i" % (attribute, value, funcid)
         self.update(update_string)
     
+    
+    ### TRAVERSAL
+    
+    def select_funcname(self, funcid):
+        select_string = """select funcname, libid from t_function where id = %i""" % funcid
+        return self.select(select_string).fetchall()
+    
+    def select_calling_functions(self, snippet_funcname, libid):
+        select_string = """select funcid from t_functioncall, t_function where t_functioncall.funcid = t_function.id 
+                        and  functioncall like '%s%%' and libid = %i group by funcid""" % (snippet_funcname, libid)
+        return self.select(select_string).fetchall()
     
     ### OTHER
     

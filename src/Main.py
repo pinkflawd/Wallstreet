@@ -165,21 +165,24 @@ def main():
     elif options.rating is not None:
         # get suspicious functions per OS
         mysuspicion = Magic.Rating.Rating()
+        log.info("Starting to find \"new\" functions")
         mysuspicion.rate_new_functions()
+        log.info("Starting to rate missing safe APIs")
         mysuspicion.rate_missing_safeapis()
+        log.info("Starting to fill in all safe API hits")
+        mysuspicion.rate_safeapihits()
 
 
 
     # Call tree traversal!!
     
+    elif options.treetraversal is not None:
+        
+        ratingobj = Magic.Rating.Rating()
+        ratingobj.traverse_calltree(int(options.treetraversal), [], 0)
+        
     
-    
-    
-    
-    
-    
-    
-    
+
     
     ### OPTION lib_allinfo prints all hit information of one library, given the libid
     

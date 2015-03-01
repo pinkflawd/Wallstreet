@@ -6,11 +6,21 @@ Created on 05.01.2015
 
 from Enums import OsVersion
 from SafeAPIDiffing import SafeAPIDiffing
+import os
+import logging.config
 
 class Rating(object):
     '''
     classdocs
     '''
+    
+    try:
+        logging.config.fileConfig(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..','..', 'conf', 'logger.conf'))
+        log = logging.getLogger('Rating')
+    except:
+        # here could go some configuration of a default logger -- me too lazy
+        print "Error, logger.conf not found or broken. Check on http://docs.python.org/2/howto/logging.html what to do."
+        exit(1)
 
 
     def __init__(self):
@@ -43,19 +53,26 @@ class Rating(object):
         return to_flag
     
     def rate_new_functions(self):
-         
+        
+        self.log.info("Get new functions Win7")
         flagged = self.get_new_per_os(OsVersion.win7.value)  # @UndefinedVariable
+        self.log.info("Get new functions Win7")
         flagged = flagged + (self.get_new_per_os(OsVersion.win8.value)) # @UndefinedVariable
+        self.log.info("Get new functions Win7")
         flagged = flagged + (self.get_new_per_os(OsVersion.win10.value))    # @UndefinedVariable
         
         for flag in flagged:
             self.db.update_rating(flag, 'newness', 1)
+        self.log.info("DB updated with \"new\" rating")
 
     def rate_missing_safeapis(self):
         
         diffobj = SafeAPIDiffing()
+        self.log.info("Safe API diffing for Win7/Win8")
         diffobj.missing_safeapis_singlesided(OsVersion.win7.value, OsVersion.win8.value)    # @UndefinedVariable
         diffobj.missing_safeapis_singlesided(OsVersion.win8.value, OsVersion.win7.value)    # @UndefinedVariable
+        
+        self.log.info("Safe API diffing for Win8/Win10")
         diffobj.missing_safeapis_singlesided(OsVersion.win8.value, OsVersion.win10.value)   # @UndefinedVariable
         diffobj.missing_safeapis_singlesided(OsVersion.win10.value, OsVersion.win8.value)   # @UndefinedVariable
         
@@ -69,3 +86,32 @@ class Rating(object):
         allhits = self.db.select_safeapihits_per_function() # funcid, count
         for hit in allhits:
             self.db.update_rating(hit[0], 'safeapihits', hit[1])
+            
+    def traverse_calltree(self, funcid, calllist, level):
+        function_name = self.db.select_funcname(funcid)
+        
+        calllist.append(function_name[0][0])
+        snippet = function_name[0][0][:function_name[0][0].index('(')] + "("
+        calling_functions = self.db.select_calling_functions(snippet, function_name[0][1])
+        
+        indent = level * '-'
+        print indent + " > " + str(funcid) + ": " + function_name[0][0]
+        #print "Got preceding calls %i" % len(calling_functions)
+        #for x in calling_functions:
+        #    print x
+        level = level + 1
+        if calling_functions:
+            for call in calling_functions:
+                
+                #print "IN THERE WITH %s" % call[0]
+                self.traverse_calltree(call[0], calllist, level)
+                
+                #print "OUTTA HERE"
+                calllist.pop()
+            level = level - 1
+            
+        else:
+            #for x in calllist:
+            #    print x
+            #print "## EXIT ##"
+            pass
