@@ -172,14 +172,12 @@ def main():
         log.info("Starting to fill in all safe API hits")
         mysuspicion.rate_safeapihits()
 
-
-
     # Call tree traversal!!
     
     elif options.treetraversal is not None:
         
         ratingobj = Magic.Rating.Rating()
-        ratingobj.traverse_calltree(int(options.treetraversal), [], 0)
+        ratingobj.traverse_calltree(int(options.treetraversal), 0, [])
         
     
 

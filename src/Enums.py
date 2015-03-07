@@ -26,3 +26,5 @@ class Exploitables(Enum):
     move = 'MOVE'
     write = 'WRITE'
     memset = 'MEMSET'
+    cpy = 'CPY'
+    

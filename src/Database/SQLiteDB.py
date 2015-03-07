@@ -30,7 +30,7 @@ class SQLiteDB(object):
     
     def __init__(self):
         try:
-            self.localdb = sqlite3.connect(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..','..', 'data', 'ratingtest.sqlite'))
+            self.localdb = sqlite3.connect(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..','..', 'data', 'userland.sqlite'))
             # set row factory to Row type for accessing rows as dictionaries
             self.localdb.row_factory = sqlite3.Row
             self.localdb.text_factory = str
@@ -90,6 +90,7 @@ class SQLiteDB(object):
             self.localdb.commit()
             cursor.close()
         
+            
 
     ###########################
     # Extended Operations     #

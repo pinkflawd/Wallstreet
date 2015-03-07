@@ -87,31 +87,24 @@ class Rating(object):
         for hit in allhits:
             self.db.update_rating(hit[0], 'safeapihits', hit[1])
             
-    def traverse_calltree(self, funcid, calllist, level):
-        function_name = self.db.select_funcname(funcid)
+    def traverse_calltree(self, funcid, level, looped):
         
-        calllist.append(function_name[0][0])
+        #list of traversed elements for avoiding loops
+        looped.append(funcid)
+        
+        #fetching of called functions from current element
+        function_name = self.db.select_funcname(funcid)
         snippet = function_name[0][0][:function_name[0][0].index('(')] + "("
         calling_functions = self.db.select_calling_functions(snippet, function_name[0][1])
         
+        #print calling_functions
         indent = level * '-'
         print indent + " > " + str(funcid) + ": " + function_name[0][0]
-        #print "Got preceding calls %i" % len(calling_functions)
-        #for x in calling_functions:
-        #    print x
         level = level + 1
         if calling_functions:
             for call in calling_functions:
-                
-                #print "IN THERE WITH %s" % call[0]
-                self.traverse_calltree(call[0], calllist, level)
-                
-                #print "OUTTA HERE"
-                calllist.pop()
+                if call[0] not in looped:
+                    self.traverse_calltree(call[0], level, looped)
             level = level - 1
             
-        else:
-            #for x in calllist:
-            #    print x
-            #print "## EXIT ##"
-            pass
+        
