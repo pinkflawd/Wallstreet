@@ -27,6 +27,12 @@ class Rating(object):
         import Database.SQLiteDB
         self.db = Database.SQLiteDB.SQLiteDB()
         
+    def create_view(self):
+        self.db.create_rating_view()
+        
+    def drop_view(self):
+        self.db.drop_rating_view()
+        
     def print_suspicous_all(self):
         libids = self.db.select_libid_all()
         
@@ -35,35 +41,23 @@ class Rating(object):
             sus_functions = self.db.select_suspicious_functions(lib[0])
             for func in sus_functions:
                 print ";", func[0]
-    
-    # returns functions per given OS which are not present in all three OS versions
-    
-    def get_new_per_os(self, os):
 
-        to_flag = []
 
-        functions_os1 = self.db.select_functions_os(os)
-        for func_os1 in functions_os1:
-            snippet_funcos1 = func_os1[0][:func_os1[0].index('(')] + "("
-            
-            interesting = self.db.select_number_function_per_os(snippet_funcos1) # ret count, os for this specific snippet
-            if len(interesting) < OsVersion.version_count.value: # or distinct os < 3 @UndefinedVariable
-                to_flag.append(func_os1[1]) # return function ids
-            
-        return to_flag
     
     def rate_new_functions(self):
         
-        self.log.info("Get new functions Win7")
-        flagged = self.get_new_per_os(OsVersion.win7.value)  # @UndefinedVariable
-        self.log.info("Get new functions Win7")
-        flagged = flagged + (self.get_new_per_os(OsVersion.win8.value)) # @UndefinedVariable
-        self.log.info("Get new functions Win7")
-        flagged = flagged + (self.get_new_per_os(OsVersion.win10.value))    # @UndefinedVariable
+        final = []
+        funcids_notnew = self.db.select_funcids_notnew()
+        for tuple in funcids_notnew:
+            final.append([int(tuple[0])])
+            final.append([int(tuple[1])])
+            final.append([int(tuple[2])])
         
-        for flag in flagged:
-            self.db.update_rating(flag, 'newness', 1)
+        self.db.update_newness(final)
+
         self.log.info("DB updated with \"new\" rating")
+
+
 
     def rate_missing_safeapis(self):
         
@@ -81,6 +75,9 @@ class Rating(object):
         
     def rate_exploitables(self, funcid, exploitables):
         self.db.update_rating(funcid, 'exploitables', exploitables)
+        
+    def rate_multiple(self, funcid, sanitychecks, exploitables, linecount):
+        self.db.update_rating_multiple(funcid, sanitychecks, exploitables, linecount)
         
     def rate_safeapihits(self):
         allhits = self.db.select_safeapihits_per_function() # funcid, count
@@ -107,4 +104,9 @@ class Rating(object):
                     self.traverse_calltree(call[0], level, looped)
             level = level - 1
             
+    def get_functioncalls(self, funcid):
+        functioncalls = self.db.select_functioncalls(funcid)
+        for it in functioncalls:
+            print it[2]
+        
         

@@ -15,7 +15,6 @@ class OsVersion(Enum):
 class Exploitables(Enum):
     load = 'LOAD'
     convert = 'CONVERT'
-    create = 'CREATE'
     read = 'READ'
     decode = 'DECODE'
     save = 'SAVE'
@@ -28,3 +27,18 @@ class Exploitables(Enum):
     memset = 'MEMSET'
     cpy = 'CPY'
     
+class SuspiciousPatterns(Enum):
+    load = 'Load'
+    convert = 'Convert'
+    set = 'Set'
+    dec = 'Dec'
+    create = 'Create'
+    read = 'Read'
+    down = 'Down'
+    decode = 'Decode'
+    save = 'Save'
+    append = 'Append'
+    do = 'Do'
+    copy = 'Copy'
+    open = 'Open'
+    write = 'Write'

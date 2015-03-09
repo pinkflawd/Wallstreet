@@ -59,5 +59,13 @@ class Function(object):
     def signature_found(self, libid, funcid, sigpattern, line_offset):
         self.db.insert_hit(libid, funcid, sigpattern, line_offset)
 
-    def add_functioncall(self, functioncall):
-        self.db.insert_functioncall(self.id, functioncall)
+    def set_functioncalls(self, functioncalls):
+        self.db.insert_many_functioncalls(functioncalls)
+        
+    def set_signaturehits(self, signaturehits):
+        self.db.insert_many_signaturehits(signaturehits)
+        
+    def set_them_all(self, sanitychecks, exploitables, linecount):
+        rateme = Magic.Rating.Rating()
+        rateme.rate_multiple(self.id, sanitychecks, exploitables, linecount)
+        

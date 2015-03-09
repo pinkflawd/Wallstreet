@@ -59,6 +59,7 @@ def main():
     parser.add_option("-x", "--suspicious_all", action="store_true", dest="suspicious_all", help="Gets all suspicious functions per library and prints them to CSV in data directory")
     parser.add_option("-r", "--rating", action="store_true", dest="rating", help="Does the rating magic and puts it into the DB")
     parser.add_option("-t", "--tree", dest="treetraversal", help="Provide a function ID for traversal of call tree")
+    parser.add_option("-b", "--functioncalls", dest="functioncalls", help="Provide a function ID to get all functions called from that function")
     #parser.add_option("")
     
     (options, args) = parser.parse_args()
@@ -165,6 +166,9 @@ def main():
     elif options.rating is not None:
         # get suspicious functions per OS
         mysuspicion = Magic.Rating.Rating()
+        mysuspicion.drop_view()
+        mysuspicion.create_view()
+        
         log.info("Starting to find \"new\" functions")
         mysuspicion.rate_new_functions()
         log.info("Starting to rate missing safe APIs")
@@ -179,7 +183,9 @@ def main():
         ratingobj = Magic.Rating.Rating()
         ratingobj.traverse_calltree(int(options.treetraversal), 0, [])
         
-    
+    elif options.functioncalls is not None:
+        ratingobj = Magic.Rating.Rating()
+        ratingobj.get_functioncalls(int(options.functioncalls))
 
     
     ### OPTION lib_allinfo prints all hit information of one library, given the libid

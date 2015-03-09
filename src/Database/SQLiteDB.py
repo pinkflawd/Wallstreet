@@ -30,7 +30,7 @@ class SQLiteDB(object):
     
     def __init__(self):
         try:
-            self.localdb = sqlite3.connect(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..','..', 'data', 'userland.sqlite'))
+            self.localdb = sqlite3.connect(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..','..', 'data', 'ulandtry.sqlite'))
             # set row factory to Row type for accessing rows as dictionaries
             self.localdb.row_factory = sqlite3.Row
             self.localdb.text_factory = str
@@ -48,49 +48,46 @@ class SQLiteDB(object):
     ###########################
 
     def select(self, select_string):
-        try: 
-            cursor = self.localdb.cursor()
-            cursor.execute(select_string)
-        except:
-            print select_string
-            raise DatabaseError, "An Error occurred when executing a select."
-        else:
-            return cursor
+        cursor = self.localdb.cursor()
+        cursor.execute(select_string)
+        return cursor
         
     def insert(self, insert_string):
-        try:
-            cursor = self.localdb.cursor()
-            cursor.execute(insert_string)
-        except:
-            print insert_string
-            raise DatabaseError, "An Error occurred when executing an insert."
-        else:
-            self.localdb.commit()
-            cursor.close()
-            
+        cursor = self.localdb.cursor()
+        cursor.execute(insert_string)
+        self.commit()
+        cursor.close()
+        
+    def insert_many(self, insert_string, arglist):
+        cursor = self.localdb.cursor()
+        cursor.executemany(insert_string, arglist)
+        self.commit()
+        cursor.close()
+        
     def delete(self, delete_string):
-        try:
-            cursor = self.localdb.cursor()
-            cursor.execute(delete_string)
-        except:
-            print delete_string
-            raise DatabaseError, "An Error occurred when executing a delete."
-        else:
-            self.localdb.commit()
-            cursor.close()
+        cursor = self.localdb.cursor()
+        cursor.execute(delete_string)
+        self.commit()
+        cursor.close()
             
     def update(self, update_string):
-        try:
-            cursor = self.localdb.cursor()
-            cursor.execute(update_string)
-        except:
-            print update_string
-            raise DatabaseError, "An Error occurred when executing an update."
-        else:
-            self.localdb.commit()
-            cursor.close()
+        cursor = self.localdb.cursor()
+        cursor.execute(update_string)
+        self.commit()
+        cursor.close()
         
-            
+    def update_many(self, update_string,  many):
+        #print type(many)
+        cursor = self.localdb.cursor()
+        cursor.executemany(update_string, many)
+        self.commit()
+        cursor.close()
+        
+    def commit(self):
+        try:
+            self.localdb.commit()
+        except:
+            raise DatabaseError, "Commit failed."
 
     ###########################
     # Extended Operations     #
@@ -186,6 +183,10 @@ class SQLiteDB(object):
     def insert_functioncall(self, funcid, functioncall):
         insert_string = "insert into t_functioncall (funcid, functioncall) values (%i, '%s')" % (funcid, functioncall)
         self.insert(insert_string)
+    
+    def insert_many_functioncalls(self, functioncalls):
+        insert_string = "insert into t_functioncall (funcid, functioncall) values (?, ?)"
+        self.insert_many(insert_string, functioncalls)
         
     def insert_signatures(self, signatures):
         self.flush_signature()
@@ -205,6 +206,9 @@ class SQLiteDB(object):
         insert_string = "insert into t_hit (libid, funcid, sigpattern, line_offset) values (%i, %i, '%s', %i)" % (libid, funcid, sigpattern, line_offset)
         self.insert(insert_string)
     
+    def insert_many_signaturehits(self, signaturehits):
+        insert_string = "insert into t_hit (libid, funcid, sigpattern, line_offset) values (?, ?, ?, ?)"
+        self.insert_many(insert_string, signaturehits)
     
     def set_linecount(self, linecount, funcid):
         update_string = "update t_function set linecount = %i where id = %i" % (linecount, funcid)
@@ -275,6 +279,18 @@ class SQLiteDB(object):
     
     
     ### RATING TASKS
+    
+    # THE view
+    def drop_rating_view(self):
+        delete_string = "drop view if exists hot_data"
+        self.delete(delete_string)
+        
+    def create_rating_view(self):
+        create_string = """create view hot_data as 
+                        select l.os, l.libname, f.id, f.funcname, f.linecount, f.suspicious, f.exploitables, f.newness, f.safeapismissing, f.safeapihits, f.sanitychecks
+                        from t_library l, t_function f 
+                        where l.id = f.libid """
+        self.insert(create_string)
         
     # get all functions per os
     def select_functions_os(self, os):
@@ -296,6 +312,17 @@ class SQLiteDB(object):
         select_string = "select count(*) from t_hit where funcid = %i and sigpattern = '%s'" % (funcid, pattern)
         return self.select(select_string).fetchone()
     
+    
+    
+    def select_funcids_notnew(self):
+        select_string = """select f1.id, f2.id, f3.id
+                        from hot_data f1, hot_data f2, hot_data f3
+                        where f1.funcname = f2.funcname and f2.funcname = f3.funcname
+                        and f1.libname = f2.libname and f2.libname = f3.libname
+                        and f1.os = 'WIN7' and f2.os = 'WIN8' and f3.os = 'WIN10'"""
+        return self.select(select_string).fetchall()
+    
+    
     # check if one functionname is present in all os versions
     def select_number_function_per_os(self, funcname):
         select_string = "select count(*), os from t_function join t_library on t_function.libid=t_library.id where funcname like '%s%%' group by os" % funcname
@@ -309,6 +336,15 @@ class SQLiteDB(object):
     def update_rating(self, funcid, attribute, value):
         update_string = "update t_function set %s = %i where id = %i" % (attribute, value, funcid)
         self.update(update_string)
+        
+    def update_rating_multiple(self, funcid, sanitychecks, exploitables, linecount):
+        update_string = "update t_function set sanitychecks = %i, exploitables = %i, linecount = %i where id = %i" % (sanitychecks, exploitables, linecount, funcid)
+        self.update(update_string)
+    
+    def update_newness(self, notnew):
+        update_string = "update t_function set newness = 0 where id in (?)"
+        self.update_many(update_string, notnew)
+    
     
     
     ### TRAVERSAL
@@ -320,6 +356,10 @@ class SQLiteDB(object):
     def select_calling_functions(self, snippet_funcname, libid):
         select_string = """select funcid from t_functioncall, t_function where t_functioncall.funcid = t_function.id 
                         and  functioncall like '%s%%' and libid = %i group by funcid""" % (snippet_funcname, libid)
+        return self.select(select_string).fetchall()
+    
+    def select_functioncalls(self, funcid):
+        select_string = """select * from t_functioncall where funcid = %i """ % funcid
         return self.select(select_string).fetchall()
     
     ### OTHER
@@ -357,7 +397,7 @@ class SQLiteDB(object):
                         linecount integer,
                         suspicious integer default 0,
                         exploitables integer default 0,
-                        newness integer default 0,
+                        newness integer default 1,
                         safeapismissing integer default 0,
                         safeapihits integer default 0,
                         sanitychecks integer default 0,
@@ -397,6 +437,7 @@ class SQLiteDB(object):
         
         self.insert(create_string)
         
+        self.commit()
         self.log.info("Database recreated")
         
 

@@ -10,8 +10,9 @@ from os import path
 import re
 
 from Exceptions import ParameterError, FileError
-from Enums import Exploitables
+from Enums import Exploitables, SuspiciousPatterns
 import Function
+
 
 
 class Library(object):
@@ -82,6 +83,8 @@ class Library(object):
         sanitychecks = 0
         exploitables = 0
         function = None
+        functioncalls = []
+        signaturehits = []
         
         try:
             self.file = open(self.path)
@@ -97,13 +100,11 @@ class Library(object):
                 if f_off.search(line) and not semico.search(line): ###### FIND FUNCTIONS WITHOUT CALLING CONV.
                     
                     # suspicious pattern in functionname scanning HERE
-                    suspiciouspatterns = self.db.select_suspicious()
                     
-                    for sus in suspiciouspatterns:
-                        susscan = re.compile(sus[0])
-                        if susscan.search(line):
-                            suspiciousflag = 1 # DO SOMETHING ABOUT THIS add to function table or something
-                        
+                    for suspatt in SuspiciousPatterns:
+                        if suspatt.value in line:
+                                suspiciousflag = 1
+                                                
                     # create new function (object) with linecount 0
                     if function is not None:
                         self.log.error("Something wrong with the brackets? %s" % function.funcname)
@@ -116,6 +117,9 @@ class Library(object):
                     suspiciousflag = 0
                     sanitychecks = 0
                     exploitables = 0
+                    functioncalls = []
+                    signaturehits = []
+                    
                     
                 elif function is not None and not comment.search(line):                      #inside a function and not a comment line
       
@@ -130,21 +134,17 @@ class Library(object):
                     if (len(rline) > 11):
                         signatures = self.db.select_signatures()
                         
+                        
+                        #if any (sig[0] in line for sig in signatures):
+                        
                         for sig in signatures:
-                            sigscan = re.compile(sig[0])
-                            
-                            if sigscan.search(line):
-                                #print sig[0]
-                                
-                                ### here: check for mapping, if exists, replace sig
-                                if (sig[1] is not None):
-                                    function.signature_found(function.libid,function.id,sig[1],linecount+1)
-                                    #print "MAPPING found %s in %s" % (sig['mapping'], line.rstrip())
-                                else:
-                                    function.signature_found(function.libid,function.id,sig[0],linecount+1)
+                            #sigscan = re.compile(sig[0])
+                            if sig[0] in line:
+                                #function.signature_found(function.libid,function.id,sig[0],linecount+1)
+                                signaturehits.append([function.libid,function.id,sig[0],linecount+1])
                     
                     # parsing for called functions within actual function
-                    if (len(rline) > 5):
+                    if (len(rline) > 7):
                         if (call.search(line)):
                             sani_line = re.sub('["\'\\\]', '', line)
                             
@@ -156,7 +156,7 @@ class Library(object):
                                     #print cut_fcalls.group()
                                     pass
                                 else:
-                                    function.add_functioncall(cut_fcalls.group())
+                                    functioncalls.append([function.id, cut_fcalls.group()])
                          
                         # search for exploitables and sanity checks HERE
                         if (sanitize.search(line)):
@@ -165,10 +165,9 @@ class Library(object):
                         # Load Convert Set Create Read Decode Save Append Do Copy Open Alloc 
                         for exploitable in Exploitables:
                             large = line.upper()
-                            if exploitable.value in large and 'Thread' not in large and 'Writeable' not in large:
+                            if exploitable.value in large and 'THREAD' not in large and 'WRITEABLE' not in large:
                                 exploitables = exploitables + 1
-                                #print rline
-                        
+                                
                     if (brackon.search(rline)):
                         brackflag += 1
 
@@ -177,9 +176,12 @@ class Library(object):
                         
                         # End of function reached
                         if (brackflag == 0):
-                            function.set_sanitycheck_rating(sanitychecks)
-                            function.set_exploitables_rating(exploitables)
-                            function.set_linecount(linecount+1)
+                            #function.set_sanitycheck_rating(sanitychecks)
+                            #function.set_exploitables_rating(exploitables)
+                            #function.set_linecount(linecount+1)
+                            function.set_them_all(sanitychecks, exploitables, linecount+1)
+                            function.set_functioncalls(functioncalls)
+                            function.set_signaturehits(signaturehits)
                             function = None
                                                         
                     if function is not None:                  
@@ -196,6 +198,7 @@ class Library(object):
             
             self.file.close()
  
+        self.db.commit()
         
     def flush_me(self):
         self.db.flush_library(self.id)
